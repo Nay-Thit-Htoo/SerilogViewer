@@ -1,0 +1,55 @@
+﻿@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="_theme" IsDarkMode="true" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="4" Dense="true">
+        <MudIcon Icon="@Icons.Material.Filled.Terminal" Size="Size.Large" Class="mr-2" />
+        <MudText Typo="Typo.h6" Style="font-weight: 600;">Serilog Viewer</MudText>
+        <MudSpacer />
+        <MudText Typo="Typo.caption" Style="opacity: 0.7;">Folder Context Explorer</MudText>
+    </MudAppBar>
+
+    <MudMainContent Class="pa-4" Style="padding-top: 68px !important;">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+@code {
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#7c4dff",
+            Secondary = "#00bfa5",
+            AppbarBackground = "#1a1a2e",
+        },
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#7c4dff",
+            Secondary = "#00bfa5",
+            Surface = "#1e1e2d",
+            Background = "#141421",
+            AppbarBackground = "#1a1a2e",
+            DrawerBackground = "#1a1a2e",
+            TextPrimary = "#e0e0e0",
+            TextSecondary = "#a0a0b0",
+        },
+        Typography = new Typography
+        {
+            Default = new DefaultTypography
+            {
+                FontFamily = new[] { "Inter", "Helvetica", "Arial", "sans-serif" }
+            }
+        }
+    };
+}

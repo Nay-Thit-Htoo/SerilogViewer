@@ -1,0 +1,127 @@
+@using System.IO
+@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.subtitle2" Class="mb-3" Style="word-break: break-all;">
+            <strong>@_currentPath</strong>
+        </MudText>
+        
+        <MudPaper Elevation="0" Outlined="true" Style="height: 350px; overflow-y: auto; background: #1a1a2e;">
+            <MudList T="string" Dense="true" Clickable="true">
+                @if (Directory.GetParent(_currentPath) != null)
+                {
+                    <MudListItem OnClick="NavigateUp" Icon="@Icons.Material.Filled.ArrowUpward" IconColor="Color.Primary">
+                        ..
+                    </MudListItem>
+                }
+
+                @foreach (var drive in _drives)
+                {
+                    <MudListItem OnClick="@(() => NavigateTo(drive.Name))" Icon="@Icons.Material.Filled.Storage" IconColor="Color.Info">
+                        @drive.Name
+                    </MudListItem>
+                }
+
+                @foreach (var dir in _directories)
+                {
+                    <MudListItem OnClick="@(() => NavigateTo(dir))" Icon="@Icons.Material.Filled.Folder" IconColor="Color.Warning">
+                        @Path.GetFileName(dir)
+                    </MudListItem>
+                }
+
+                @if (_directories.Count == 0 && _drives.Count == 0 && Directory.GetParent(_currentPath) == null)
+                {
+                     <MudListItem Disabled="true">No directories found.</MudListItem>
+                }
+            </MudList>
+        </MudPaper>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Select Folder</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    
+    [Parameter] public string InitialPath { get; set; } = string.Empty;
+
+    private string _currentPath = string.Empty;
+    private List<string> _directories = new();
+    private List<DriveInfo> _drives = new();
+
+    protected override void OnInitialized()
+    {
+        _currentPath = string.IsNullOrWhiteSpace(InitialPath) || !Directory.Exists(InitialPath)
+            ? Directory.GetCurrentDirectory()
+            : InitialPath;
+            
+        LoadDirectories();
+    }
+
+    private void LoadDirectories()
+    {
+        try
+        {
+            _directories.Clear();
+            _drives.Clear();
+
+            // If we're at the root of a drive on Windows, sometimes parent is null, but we can browse drives
+            var parent = Directory.GetParent(_currentPath);
+            if (parent == null && Environment.OSVersion.Platform == PlatformID.Win32NT && _currentPath == "\\")
+            {
+               // Show drives
+               _drives = DriveInfo.GetDrives().Where(d => d.IsReady).ToList();
+            }
+            else
+            {
+                _directories = Directory.GetDirectories(_currentPath).OrderBy(d => d).ToList();
+                
+                // Also optionally add drives if we are at the root
+                if (parent == null && Environment.OSVersion.Platform == PlatformID.Win32NT)
+                {
+                    _drives = DriveInfo.GetDrives().Where(d => d.IsReady && d.Name != _currentPath).ToList();
+                }
+            }
+        }
+        catch
+        {
+            // Ignore access denied errors
+        }
+    }
+
+    private void NavigateUp()
+    {
+        var parent = Directory.GetParent(_currentPath);
+        if (parent != null)
+        {
+            _currentPath = parent.FullName;
+            LoadDirectories();
+        }
+        else if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+        {
+             // Go to drives list
+             _currentPath = "\\";
+             LoadDirectories();
+        }
+    }
+
+    private void NavigateTo(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                _currentPath = path;
+                LoadDirectories();
+            }
+        }
+        catch { /* Access Denied */ }
+    }
+
+    private void Submit() => MudDialog.Close(DialogResult.Ok(_currentPath));
+    
+    private void Cancel() => MudDialog.Cancel();
+}

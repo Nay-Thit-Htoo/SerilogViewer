@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SerilogViewer.Core/SerilogViewer.Core.csproj" />
+    <Project Path="src/SerilogViewer.Infrastructure/SerilogViewer.Infrastructure.csproj" />
+    <Project Path="src/SerilogViewer.Web/SerilogViewer.Web.csproj" />
+  </Folder>
+</Solution>

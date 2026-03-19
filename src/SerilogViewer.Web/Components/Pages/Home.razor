@@ -1,0 +1,327 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using SerilogViewer.Core.Interfaces
+@using SerilogViewer.Core.Models
+@inject ILogReaderService LogReaderService
+@inject IDialogService DialogService
+
+<PageTitle>Serilog Viewer</PageTitle>
+
+@* ──────────── Filter Card ──────────── *@
+<MudCard Elevation="3" Class="mb-4" Style="background: linear-gradient(135deg, #1e1e2d 0%, #252540 100%); border: 1px solid rgba(124, 77, 255, 0.15);">
+    <MudCardContent>
+        <MudGrid>
+            @* Folder Path Selector *@
+            <MudItem xs="12" Class="d-flex align-center gap-2">
+                <MudTextField @bind-Value="_folderPath"
+                              Label="Log Folder Path"
+                              Placeholder="e.g. C:\Logs"
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Folder"
+                              Immediate="true" />
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Secondary" 
+                           OnClick="OpenFolderPickerAsync" 
+                           StartIcon="@Icons.Material.Filled.MoreHoriz"
+                           Style="height: 56px;">Browse</MudButton>
+            </MudItem>
+
+            @* Date Range *@
+            <MudItem xs="12" sm="4" @onclick="@(() => _picker?.OpenAsync())">
+                <MudDateRangePicker @ref="_picker"
+                                    @bind-DateRange="_dateRange"
+                                    Label="Date Range (Required)"
+                                    Variant="Variant.Outlined"
+                                    Editable="true"
+                                    Clearable="false"
+                                    AdornmentIcon="@Icons.Material.Filled.CalendarMonth" />
+            </MudItem>
+
+            @* Log Level *@
+            <MudItem xs="12" sm="3">
+                <MudSelect @bind-Value="_selectedLevel"
+                           Label="Log Level"
+                           Variant="Variant.Outlined"
+                           Clearable="true"
+                           AdornmentIcon="@Icons.Material.Filled.FilterList">
+                    @foreach (var level in _logLevels)
+                    {
+                        <MudSelectItem Value="@level">@level</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            @* Keyword Search *@
+            <MudItem xs="12" sm="3">
+                <MudTextField @bind-Value="_searchKeyword"
+                              Label="Search Keyword"
+                              Placeholder="Filter by keyword…"
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Immediate="true" />
+            </MudItem>
+
+            @* Load Button *@
+            <MudItem xs="12" sm="2" Class="d-flex align-end">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           FullWidth="true"
+                           Size="Size.Large"
+                           StartIcon="@Icons.Material.Filled.Autorenew"
+                           OnClick="LoadLogsAsync"
+                           Disabled="_isLoading"
+                           Style="height: 56px;">
+                    @if (_isLoading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        <span>Scanning…</span>
+                    }
+                    else
+                    {
+                        <span>Search Logs</span>
+                    }
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+@* ──────────── Stats Bar ──────────── *@
+@if (_logs.Count > 0)
+{
+    <MudGrid Class="mb-4">
+        <MudItem xs="6" sm="3">
+            <MudPaper Class="pa-3 d-flex align-center gap-2" Elevation="2" Style="background: #1e1e2d;">
+                <MudIcon Icon="@Icons.Material.Filled.List" Color="Color.Primary" />
+                <div>
+                    <MudText Typo="Typo.caption" Style="opacity: 0.6;">Total Entries</MudText>
+                    <MudText Typo="Typo.h6" Style="font-weight: 700;">@_logs.Count</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudPaper Class="pa-3 d-flex align-center gap-2" Elevation="2" Style="background: #1e1e2d;">
+                <MudIcon Icon="@Icons.Material.Filled.Error" Style="color: #ef5350;" />
+                <div>
+                    <MudText Typo="Typo.caption" Style="opacity: 0.6;">Errors</MudText>
+                    <MudText Typo="Typo.h6" Style="font-weight: 700; color: #ef5350;">@_logs.Count(l => l.Level == "Error")</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudPaper Class="pa-3 d-flex align-center gap-2" Elevation="2" Style="background: #1e1e2d;">
+                <MudIcon Icon="@Icons.Material.Filled.Warning" Style="color: #ffa726;" />
+                <div>
+                    <MudText Typo="Typo.caption" Style="opacity: 0.6;">Warnings</MudText>
+                    <MudText Typo="Typo.h6" Style="font-weight: 700; color: #ffa726;">@_logs.Count(l => l.Level == "Warning")</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudPaper Class="pa-3 d-flex align-center gap-2" Elevation="2" Style="background: #1e1e2d;">
+                <MudIcon Icon="@Icons.Material.Filled.BugReport" Style="color: #e53935;" />
+                <div>
+                    <MudText Typo="Typo.caption" Style="opacity: 0.6;">Fatal</MudText>
+                    <MudText Typo="Typo.h6" Style="font-weight: 700; color: #e53935;">@_logs.Count(l => l.Level == "Fatal")</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@* ──────────── Log Data Grid ──────────── *@
+@if (_logs.Count > 0)
+{
+    <MudDataGrid Items="@_logs"
+                 T="LogEvent"
+                 Striped="true"
+                 Hover="true"
+                 Dense="true"
+                 Bordered="true"
+                 Filterable="false"
+                 RowsPerPage="25"
+                 Style="background: #1e1e2d;"
+                 RowStyleFunc="@RowStyleFunc">
+        <Columns>
+            <HierarchyColumn T="LogEvent" />
+            <PropertyColumn Property="x => x.Timestamp" Title="Timestamp" Format="yyyy-MM-dd HH:mm:ss.fff" />
+            <TemplateColumn Title="Level" SortBy="x => x.Level">
+                <CellTemplate>
+                    <MudChip T="string"
+                             Size="Size.Small"
+                             Color="@GetLevelColor(context.Item.Level)"
+                             Variant="Variant.Filled"
+                             Style="min-width: 90px; justify-content: center;">
+                        @context.Item.Level
+                    </MudChip>
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="x => x.RenderedMessage" Title="Message" />
+        </Columns>
+        <ChildRowContent>
+            <MudCard Elevation="0" Class="ma-2" Style="background: #252540; border: 1px solid rgba(124, 77, 255, 0.2);">
+                <MudCardContent>
+                    @if (!string.IsNullOrWhiteSpace(context.Item.Exception))
+                    {
+                        <MudText Typo="Typo.subtitle2" Color="Color.Error" Class="mb-1">
+                            <MudIcon Icon="@Icons.Material.Filled.BugReport" Size="Size.Small" Class="mr-1" /> Exception
+                        </MudText>
+                        <MudPaper Class="pa-2 mb-3" Style="background: #1a1a2e; overflow-x: auto;">
+                            <pre style="margin: 0; white-space: pre-wrap; color: #ef9a9a; font-size: 0.82rem;">@context.Item.Exception</pre>
+                        </MudPaper>
+                    }
+
+                    @if (context.Item.Properties.Count > 0)
+                    {
+                        <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-1">
+                            <MudIcon Icon="@Icons.Material.Filled.DataObject" Size="Size.Small" Class="mr-1" /> Properties
+                        </MudText>
+                        <MudSimpleTable Dense="true" Bordered="true" Striped="true" Style="background: #1a1a2e;">
+                            <thead>
+                                <tr>
+                                    <th>Key</th>
+                                    <th>Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var prop in context.Item.Properties)
+                                {
+                                    <tr>
+                                        <td><MudText Typo="Typo.body2" Style="color: #7c4dff;">@prop.Key</MudText></td>
+                                        <td><MudText Typo="Typo.body2">@prop.Value</MudText></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(context.Item.MessageTemplate))
+                    {
+                        <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mt-3 mb-1">
+                            <MudIcon Icon="@Icons.Material.Filled.Code" Size="Size.Small" Class="mr-1" /> Message Template
+                        </MudText>
+                        <MudPaper Class="pa-2" Style="background: #1a1a2e;">
+                            <code style="color: #00bfa5; font-size: 0.82rem;">@context.Item.MessageTemplate</code>
+                        </MudPaper>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </ChildRowContent>
+        <PagerContent>
+            <MudDataGridPager T="LogEvent" PageSizeOptions="new[] { 10, 25, 50, 100 }" />
+        </PagerContent>
+    </MudDataGrid>
+}
+else if (!_isLoading && _hasLoaded)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-4">
+        No JSON log entries found matching the current folder and date filters.
+    </MudAlert>
+}
+
+@code {
+    private string _folderPath = string.Empty;
+    private MudDateRangePicker? _picker;
+    private DateRange _dateRange = new DateRange(DateTime.Today, DateTime.Today);
+    private string? _selectedLevel;
+    private string? _searchKeyword;
+    private bool _isLoading;
+    private bool _hasLoaded;
+    private IReadOnlyList<LogEvent> _logs = Array.Empty<LogEvent>();
+    [Inject]
+    private ISnackbar Snackbar { get; set; } = default!;
+
+    private readonly string[] _logLevels =
+        { "Verbose", "Debug", "Information", "Warning", "Error", "Fatal" };
+
+    private async Task OpenFolderPickerAsync()
+    {
+        var parameters = new DialogParameters
+        {
+            ["InitialPath"] = _folderPath
+        };
+
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<FolderPickerDialog>("Select Folder", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled && result.Data is string selectedPath)
+        {
+            _folderPath = selectedPath;
+        }
+    }
+
+    private async Task LoadLogsAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_folderPath))
+        {
+            Snackbar.Add("Please enter a valid folder path.", Severity.Warning);
+            return;
+        }
+
+        if (_dateRange == null || _dateRange.Start == null || _dateRange.End == null)
+        {
+            Snackbar.Add("Please select a valid date range.", Severity.Warning);
+            return;
+        }
+
+        _isLoading = true;
+        _hasLoaded = false;
+        StateHasChanged();
+
+        try
+        {
+            if (!Directory.Exists(_folderPath))
+            {
+                Snackbar.Add($"Folder '{_folderPath}' does not exist.", Severity.Error);
+                return;
+            }
+
+            var filter = new LogFilter
+            {
+                StartDate = _dateRange.Start,
+                EndDate = _dateRange.End,
+                LogLevel = _selectedLevel,
+                SearchKeyword = _searchKeyword
+            };
+
+            _logs = await LogReaderService.ReadLogsAsync(_folderPath, filter);
+            _hasLoaded = true;
+
+            Snackbar.Add($"Loaded {_logs.Count} log entries from {_folderPath}.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error scanning folder: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private static Color GetLevelColor(string level) => level switch
+    {
+        "Verbose" => Color.Default,
+        "Debug" => Color.Info,
+        "Information" => Color.Success,
+        "Warning" => Color.Warning,
+        "Error" => Color.Error,
+        "Fatal" => Color.Error,
+        _ => Color.Default,
+    };
+
+    private static string RowStyleFunc(LogEvent item, int index)
+    {
+        return item.Level switch
+        {
+            "Error" => "background: rgba(239, 83, 80, 0.08);",
+            "Fatal" => "background: rgba(229, 57, 53, 0.12);",
+            "Warning" => "background: rgba(255, 167, 38, 0.06);",
+            _ => string.Empty,
+        };
+    }
+}
