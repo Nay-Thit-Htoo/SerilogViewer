@@ -1,4 +1,4 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @using SerilogViewer.Core.Interfaces
 @using SerilogViewer.Core.Models
@@ -189,8 +189,17 @@
                                 @foreach (var prop in context.Item.Properties)
                                 {
                                     <tr>
-                                        <td><MudText Typo="Typo.body2" Style="color: #7c4dff;">@prop.Key</MudText></td>
-                                        <td><MudText Typo="Typo.body2">@prop.Value</MudText></td>
+                                        <td style="vertical-align: top; white-space: nowrap;"><MudText Typo="Typo.body2" Style="color: #7c4dff;">@prop.Key</MudText></td>
+                                        <td>
+                                            @if (prop.Key == "Payload" && prop.Value is string payloadStr && payloadStr.TrimStart().StartsWith("{"))
+                                            {
+                                                <pre style="margin: 0; white-space: pre-wrap; color: #80cbc4; font-size: 0.80rem; font-family: 'Fira Code', monospace; background: transparent;">@payloadStr</pre>
+                                            }
+                                            else
+                                            {
+                                                <MudText Typo="Typo.body2">@prop.Value</MudText>
+                                            }
+                                        </td>
                                     </tr>
                                 }
                             </tbody>
